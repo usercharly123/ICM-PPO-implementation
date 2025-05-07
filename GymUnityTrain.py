@@ -2,26 +2,28 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 import torch
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
+
 from utils import Memory
 from ICMPPO import ICMPPO
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from gym_unity.envs import UnityEnv
+from mlagents_envs.environment import UnityEnvironment
+from ml_agents.ml_agents_envs.mlagents_envs.envs.unity_gym_env import UnityToGymWrapper
 
-render = False
 solved_reward = 1.7     # stop training if avg_reward > solved_reward
 log_interval = 1000     # print avg reward in the interval
-max_episodes = 350      # max training episodes
-max_timesteps = 1000    # max timesteps in one episode
+max_episodes = 30 # WAS 350      # max training episodes
+max_timesteps = 10    # WAS 1000 max timesteps in one episode
 update_timestep = 2048  # Replay buffer size, update policy every n timesteps
 log_dir= './'           # Where to store tensorboard logs
 
 # Initialize Unity env
-multi_env_name = './envs/Pyramid/Unity Environment.exe'
-multi_env = UnityEnv(multi_env_name, worker_id=0,
-                     use_visual=False, multiagent=True)
+multi_env_name = 'Pyramid1agent/UnityEnvironment.exe'
+unity_env = UnityEnvironment(file_name=multi_env_name, worker_id=0, no_graphics=False)
+
+multi_env = UnityToGymWrapper(unity_env, uint8_visual=False)
 
 # Initialize log_writer, memory buffer, icmppo
 writer = SummaryWriter(log_dir)
@@ -30,22 +32,25 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 agent = ICMPPO(writer=writer, device=device)
 
 timestep = 0
-T = np.zeros(16)
+T = np.zeros(1) # Was 16
 state = multi_env.reset()
 # training loop
 for i_episode in range(1, max_episodes + 1):
+    print("Episode: ", i_episode)
     episode_rewards = np.zeros(16)
     episode_counter = np.zeros(16)
     for i in range(max_timesteps):
+        print("Timestep: ", timestep)
         timestep += 1
         T += 1
         # Running policy_old:
-        actions = agent.policy_old.act(np.array(state), memory)
+        actions = np.atleast_1d(agent.policy_old.act(np.array(state), memory))  # was agent.policy_old.act(np.array(state), memory)
         state, rewards, dones, info = multi_env.step(list(actions))
 
         # Fix rewards
-        dones = np.array(dones)
-        rewards = np.array(rewards)
+        rewards = np.atleast_1d(rewards)    # was np.array(rewards)
+        dones = np.atleast_1d(dones)    # was np.array(dones)
+        
         rewards += 2 * (rewards == 0) * (T < 1000)
         episode_counter += dones
         T[dones] = 0
@@ -81,3 +86,6 @@ for i_episode in range(1, max_episodes + 1):
                           episode_rewards.sum() / episode_counter.sum(),
                           timestep
         )
+
+multi_env.close()   # Closes the UnityToGymWrapper
+writer.close()      # Closes TensorBoard logging
