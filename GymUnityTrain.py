@@ -12,6 +12,8 @@ from torch.distributions import Categorical
 from mlagents_envs.environment import UnityEnvironment
 from ml_agents.ml_agents_envs.mlagents_envs.envs.unity_gym_env import UnityToGymWrapper
 
+import time
+
 solved_reward = 1.7     # stop training if avg_reward > solved_reward
 log_interval = 100     # print avg reward in the interval
 max_episodes = 35 # WAS 350      # max training episodes
@@ -35,13 +37,19 @@ timestep = 0
 T = np.zeros(1) # Was 16
 state = multi_env.reset()
 print("State: ", state.shape)
+
+# Initialize the time to know how ong the script takes to run
+start_time = time.time()
+print("Start time: ", start_time)
+
 # training loop
 for i_episode in range(1, max_episodes + 1):
     print("Episode: ", i_episode)
     episode_rewards = np.zeros(16)
     episode_counter = np.zeros(16)
     for i in range(max_timesteps):
-        print("Timestep: ", timestep)
+        if timestep % 10 == 0:
+            print("Timestep: ", timestep)
         timestep += 1
         T += 1
         # Running policy_old:
@@ -92,6 +100,11 @@ for i_episode in range(1, max_episodes + 1):
                           episode_rewards.sum() / episode_counter.sum(),
                           timestep
         )
+        
+# Print the time it took to run the script
+end_time = time.time()
+print("End time: ", end_time)
+print("Time taken: ", end_time - start_time)
 
 multi_env.close()   # Closes the UnityToGymWrapper
 writer.close()      # Closes TensorBoard logging

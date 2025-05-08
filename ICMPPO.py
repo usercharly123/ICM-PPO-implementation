@@ -48,14 +48,26 @@ class ICMPPO:
         # Convert lists from memory to tensors
         self.timestep = timestep
         
-        old_states = torch.tensor(np.array(memory.states), dtype=torch.float32, device=self.device)
-        old_actions = torch.tensor(np.array(memory.actions), dtype=torch.long, device=self.device)
-        old_logprobs = torch.tensor(np.array(memory.logprobs), dtype=torch.float32, device=self.device)
-        
+        old_states = torch.tensor(
+            np.array([t.detach().cpu().numpy() for t in memory.states]),
+            dtype=torch.float32,
+            device=self.device
+        )
+        old_actions = torch.tensor(
+            np.array([t.detach().cpu().numpy() for t in memory.actions]),
+            dtype=torch.float32,
+            device=self.device
+        )
+        old_logprobs = torch.tensor(
+            np.array([t.detach().cpu().numpy() for t in memory.logprobs]),
+            dtype=torch.float32,
+            device=self.device
+        )
+
         #old_states = torch.stack(memory.states).to(self.device).detach()
-        #old_states = torch.transpose(old_states, 0, 1)
         #old_actions = torch.stack(memory.actions).T.to(self.device).detach()
         #old_logprobs = torch.stack(memory.logprobs).T.to(self.device).detach()
+        #old_states = torch.transpose(old_states, 0, 1)
             
         # Finding s, n_s, a, done, reward:
         curr_states = old_states[:-1, :] # WAS old_states[:, :-1, :]
