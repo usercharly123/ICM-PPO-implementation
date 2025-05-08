@@ -9,7 +9,7 @@ from utils import Swish, linear_decay_beta, linear_decay_lr, linear_decay_eps
 class ICMPPO:
     def __init__(self, writer, state_dim=172, action_dim=5, n_latent_var=512, lr=3e-4, betas=(0.9, 0.999),
                  gamma=0.99, ppo_epochs=3, icm_epochs=1, eps_clip=0.2, ppo_batch_size=128,
-                 icm_batch_size=16, intr_reward_strength=0.02, lamb=0.95, device='cpu'):
+                 icm_batch_size=1, intr_reward_strength=0.02, lamb=0.95, device='cpu'):
         self.lr = lr
         self.betas = betas
         self.gamma = gamma
@@ -78,7 +78,11 @@ class ICMPPO:
         rewards = torch.tensor(rewards_np).T.to(self.device).detach()
         #WAS slow: rewards = torch.tensor(memory.rewards[:-1]).T.to(self.device).detach()
         
-        mask = (~torch.tensor(memory.is_terminals).T.to(self.device).detach()[:,:-1]).type(torch.long)    # WAS .detach()[:,:-1])
+        mask = (~torch.tensor(
+            np.array(memory.is_terminals),
+            dtype=torch.bool
+        ).T[:, :-1].to(self.device)).long()
+        #mask = (~torch.tensor(memory.is_terminals).T.to(self.device).detach()[:,:-1]).type(torch.long)    # WAS .detach()[:,:-1])
         
         with torch.no_grad():
             intr_reward, _, _ = self.icm(actions, curr_states, next_states, mask)
@@ -139,9 +143,9 @@ class ICMPPO:
                 # Finding the ratio (pi_theta / pi_theta__old):
                 ratios = torch.exp(batch_logprobs - batch_old_logprobs.detach())
 
-                # Apply leaner decay and multiply 16 times cause agents_batch is 16 long
-                decay_epsilon = linear_decay_eps(self.timestep * 16)
-                decay_beta = linear_decay_beta(self.timestep * 16)
+                # Apply leaner decay and multiply 1 time cause agents_batch is 1 long
+                decay_epsilon = linear_decay_eps(self.timestep * 1)
+                decay_beta = linear_decay_beta(self.timestep * 1)
 
                 # Finding Surrogate Loss:
                 surr1 = ratios * batch_advantages
@@ -155,7 +159,7 @@ class ICMPPO:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-                linear_decay_lr(self.optimizer, self.timestep * 16)
+                linear_decay_lr(self.optimizer, self.timestep * 1)
 
                 epoch_surr_loss += loss.item()
 
@@ -196,7 +200,7 @@ class ICMPPO:
                 self.optimizer_icm.zero_grad()
                 unclip_intr_loss.backward()
                 self.optimizer_icm.step()
-                linear_decay_lr(self.optimizer_icm, self.timestep * 16)
+                linear_decay_lr(self.optimizer_icm, self.timestep * 1)
         self.writer.add_scalar('Forward_loss',
                                epoch_forw_loss / (epochs * (len(indexes) // batch_size + 1)),
                                self.timestep

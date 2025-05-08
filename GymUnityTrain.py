@@ -10,13 +10,13 @@ import torch.nn as nn
 from torch.distributions import Categorical
 
 from mlagents_envs.environment import UnityEnvironment
-from ml_agents.ml_agents_envs.mlagents_envs.envs.unity_gym_env import UnityToGymWrapper
+from unity_gym_env import UnityToGymWrapper
 
 import time
 
 solved_reward = 1.7     # stop training if avg_reward > solved_reward
 log_interval = 100     # print avg reward in the interval
-max_episodes = 35 # WAS 350      # max training episodes
+max_episodes = 6 # WAS 350      # max training episodes
 max_timesteps = 100    # WAS 1000 max timesteps in one episode
 update_timestep = 18  # WAS 2048 Replay buffer size, update policy every n timesteps
 log_dir= 'events/'           # Where to store tensorboard logs
@@ -45,8 +45,8 @@ print("Start time: ", start_time)
 # training loop
 for i_episode in range(1, max_episodes + 1):
     print("Episode: ", i_episode)
-    episode_rewards = np.zeros(16)
-    episode_counter = np.zeros(16)
+    episode_rewards = np.zeros(1)   # Was 16
+    episode_counter = np.zeros(1)   # Was 16
     for i in range(max_timesteps):
         if timestep % 10 == 0:
             print("Timestep: ", timestep)
@@ -80,7 +80,7 @@ for i_episode in range(1, max_episodes + 1):
         episode_rewards += rewards
 
     if episode_counter.sum() == 0:
-        episode_counter = np.ones(16)
+        episode_counter = np.ones(1)
 
     # stop training if avg_reward > solved_reward
     if episode_rewards.sum() / episode_counter.sum() > solved_reward:
