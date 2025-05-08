@@ -47,17 +47,27 @@ class ICMPPO:
     def update(self, memory, timestep):
         # Convert lists from memory to tensors
         self.timestep = timestep
-        old_states = torch.stack(memory.states).to(self.device).detach()
-        old_states = torch.transpose(old_states, 0, 1)
-        old_actions = torch.stack(memory.actions).T.to(self.device).detach()
-        old_logprobs = torch.stack(memory.logprobs).T.to(self.device).detach()
-
+        
+        old_states = torch.tensor(np.array(memory.states), dtype=torch.float32, device=self.device)
+        old_actions = torch.tensor(np.array(memory.actions), dtype=torch.long, device=self.device)
+        old_logprobs = torch.tensor(np.array(memory.logprobs), dtype=torch.float32, device=self.device)
+        
+        #old_states = torch.stack(memory.states).to(self.device).detach()
+        #old_states = torch.transpose(old_states, 0, 1)
+        #old_actions = torch.stack(memory.actions).T.to(self.device).detach()
+        #old_logprobs = torch.stack(memory.logprobs).T.to(self.device).detach()
+            
         # Finding s, n_s, a, done, reward:
-        curr_states = old_states[:, :-1, :]
-        next_states = old_states[:, 1:, :]
-        actions = old_actions[:, :-1].long()
-        rewards = torch.tensor(memory.rewards[:-1]).T.to(self.device).detach()
-        mask = (~torch.tensor(memory.is_terminals).T.to(self.device).detach()[:, :-1]).type(torch.long)
+        curr_states = old_states[:-1, :] # WAS old_states[:, :-1, :]
+        next_states = old_states[1:, :] # WAS old_states[:, 1:, :]
+        actions = old_actions[:-1].long() # WAS old_actions[:, :-1].long()
+        
+        rewards_np = np.array(memory.rewards[:-1])  # Convert to 2D NumPy array
+        rewards = torch.tensor(rewards_np).T.to(self.device).detach()
+        #WAS slow: rewards = torch.tensor(memory.rewards[:-1]).T.to(self.device).detach()
+        
+        mask = (~torch.tensor(memory.is_terminals).T.to(self.device).detach()[:,:-1]).type(torch.long)    # WAS .detach()[:,:-1])
+        
         with torch.no_grad():
             intr_reward, _, _ = self.icm(actions, curr_states, next_states, mask)
         intr_rewards = torch.clamp(self.intr_reward_strength * intr_reward, 0, 1)
@@ -67,7 +77,7 @@ class ICMPPO:
                                self.timestep
                                )
 
-        # Finding comulitive advantage
+        # Finding cumulative advantage
         with torch.no_grad():
             state_values = torch.squeeze(self.policy.value_layer(curr_states))
             next_state_values = torch.squeeze(self.policy.value_layer(next_states))
@@ -83,7 +93,7 @@ class ICMPPO:
                                    self.timestep
                                    )
 
-            advantage = torch.zeros(1, 16).to(self.device)
+            advantage = torch.zeros(1).to(self.device)      # WAS torch.zeros(1, 16).to(self.device)      
             advantage_lst = []
             for i in range(delta.size(1) - 1, -1, -1):
                 delta_t, mask_t = delta[:, i], mask[:, i]
@@ -99,16 +109,16 @@ class ICMPPO:
         # Optimize policy for ppo epochs:
         epoch_surr_loss = 0
         for _ in range(self.ppo_epochs):
-            indexes = np.random.permutation(actions.size(1))
+            indexes = np.random.permutation(actions.size(0))    # WAS actions.size(1)
             # Train PPO and icm
             for i in range(0, len(indexes), self.ppo_batch_size):
                 batch_ind = indexes[i:i + self.ppo_batch_size]
-                batch_curr_states = curr_states[:, batch_ind, :]
-                batch_actions = actions[:, batch_ind]
-                batch_mask = mask[:, batch_ind]
-                batch_advantages = advantages[:, batch_ind]
-                batch_local_advantages = local_advantages[:, batch_ind]
-                batch_old_logprobs = old_logprobs[:, batch_ind]
+                batch_curr_states = curr_states[batch_ind, :]    # WAS curr_states[:, batch_ind, :]
+                batch_actions = actions[batch_ind]         # WAS actions[:, batch_ind]
+                batch_mask = mask[:,batch_ind]       # WAS mask[:, batch_ind]
+                batch_advantages = advantages[batch_ind]     # WAS advantages[:, batch_ind]
+                batch_local_advantages = local_advantages[batch_ind]   # WAS local_advantages[:, batch_ind]
+                batch_old_logprobs = old_logprobs[batch_ind]     # WAS old_logprobs[:, batch_ind]
 
                 # Finding actions logprobs and states values
                 batch_logprobs, batch_state_values, batch_dist_entropy = self.policy.evaluate(batch_curr_states,
@@ -154,12 +164,12 @@ class ICMPPO:
         epoch_forw_loss = 0
         epoch_inv_loss = 0
         for _ in range(epochs):
-            indexes = np.random.permutation(actions.size(1))
+            indexes = np.random.permutation(actions.size(0))
             for i in range(0, len(indexes), batch_size):
                 batch_ind = indexes[i:i + batch_size]
-                batch_curr_states = curr_states[:, batch_ind, :]
-                batch_next_states = next_states[:, batch_ind, :]
-                batch_actions = actions[:, batch_ind]
+                batch_curr_states = curr_states[batch_ind, :]    # WAS curr_states[:, batch_ind, :]
+                batch_next_states = next_states[batch_ind, :]    # WAS next_states[:, batch_ind, :]
+                batch_actions = actions[batch_ind]      # WAS actions[:, batch_ind]
                 batch_mask = mask[:, batch_ind]
 
                 _, inv_loss, forw_loss = self.icm(batch_actions,

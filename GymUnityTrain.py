@@ -13,11 +13,11 @@ from mlagents_envs.environment import UnityEnvironment
 from ml_agents.ml_agents_envs.mlagents_envs.envs.unity_gym_env import UnityToGymWrapper
 
 solved_reward = 1.7     # stop training if avg_reward > solved_reward
-log_interval = 1000     # print avg reward in the interval
-max_episodes = 30 # WAS 350      # max training episodes
-max_timesteps = 10    # WAS 1000 max timesteps in one episode
-update_timestep = 2048  # Replay buffer size, update policy every n timesteps
-log_dir= './'           # Where to store tensorboard logs
+log_interval = 100     # print avg reward in the interval
+max_episodes = 35 # WAS 350      # max training episodes
+max_timesteps = 100    # WAS 1000 max timesteps in one episode
+update_timestep = 18  # WAS 2048 Replay buffer size, update policy every n timesteps
+log_dir= 'events/'           # Where to store tensorboard logs
 
 # Initialize Unity env
 multi_env_name = 'Pyramid1agent/UnityEnvironment.exe'
@@ -34,6 +34,7 @@ agent = ICMPPO(writer=writer, device=device)
 timestep = 0
 T = np.zeros(1) # Was 16
 state = multi_env.reset()
+print("State: ", state.shape)
 # training loop
 for i_episode in range(1, max_episodes + 1):
     print("Episode: ", i_episode)
@@ -51,12 +52,17 @@ for i_episode in range(1, max_episodes + 1):
         rewards = np.atleast_1d(rewards)    # was np.array(rewards)
         dones = np.atleast_1d(dones)    # was np.array(dones)
         
-        rewards += 2 * (rewards == 0) * (T < 1000)
+        rewards += 2 * (rewards == 0) * (T < 1000)      # adds 2 to the reward of each agent that had zero reward but is still within the early timesteps
         episode_counter += dones
         T[dones] = 0
         # Saving reward and is_terminal:
         memory.rewards.append(rewards)
         memory.is_terminals.append(dones)
+        
+        # If the episode is done, reset the environment
+        if dones.any():
+            print(f"Episode {i_episode} done at timestep {i}")
+            state = multi_env.reset()  # Reset the environment when done = True
 
         # update if its time
         if timestep % update_timestep == 0:
